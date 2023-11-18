@@ -1,0 +1,63 @@
+
+
+
+
+
+QUESTIONS:
+
+
+
+Swiggy Case Study-Project_01
+
+1. Find customers who have never ordered
+2. Average Price/dish
+3. Find the top restaurant in terms of the number of orders for a given month
+4. restaurants with monthly sales greater than x for 
+5. Show all orders with order details for a particular customer in a particular date range
+6. Find restaurants with max repeated customers 
+7. Month over month revenue growth of swiggy
+8. Customer - favorite food
+9. Find the most loyal customers for all restaurant
+10.Month over month revenue growth of a restaurant
+
+
+QUERIES :
+
+
+
+1) SELECT u.name FROM users_2 u WHERE u.user_id NOT IN (SELECT o.user_id FROM orders o);
+1) SELECT DISTINCT name FROM users_2 u CROSS JOIN orders o WHERE u.user_id NOT IN (SELECT o.user_id FROM orders o);
+
+
+2) SELECT f.f_id,f.f_name,ROUND(AVG(m.price),2) as Avg_price FROM menu m JOIN food f ON m.f_id = f.f_id GROUP BY m.f_id;
+
+
+3)SELECT r.r_name,COUNT(o.order_id) as num_orders FROM orders o JOIN restaurants r ON o.r_id = r.r_id WHERE month(o.date) = 7 GROUP BY o.r_id ORDER BY num_orders DESC;
+3) SELECT r.r_name as restrnt,month(o.date) as date_month,COUNT(o.order_id) as num_orders FROM orders o JOIN restaurants r ON o.r_id = r.r_id  GROUP BY o.r_id,date_month ORDER BY date_month,num_orders DESC;
+
+4)SELECT r.r_name,sum(amount) as sum_sales FROM orders o JOIN restaurants r ON o.r_id = r.r_id WHERE month(o.date) = 7 GROUP BY o.r_id having sum(amount) > 500 ORDER by sum_sales DESC;
+4)SELECT r.r_name,sum(amount) as sum_sales,month(o.date) as date_month FROM orders o JOIN restaurants r ON o.r_id = r.r_id  GROUP BY o.r_id,date_month having sum(amount) > 500 ORDER by date_month,sum_sales DESC;
+
+5)SELECT o.order_id,r_name,f.f_name FROM users_2 u JOIN orders o ON u.user_id = u.user_id JOIN restaurants r ON r.r_id = o.r_id join menu m ON m.r_id = o.r_id join food f ON f.f_id = m.f_id WHERE u.name like 'Ankit' and o.date > '2022-06-10' and o.date < '2022-07-10';
+
+6)SELECT r.r_name,(b.user_count) as repeated FROM (SELECT COUNT(user_id) as user_count, r_id FROM orders  GROUP BY r_id ,user_id HAVING COUNT(user_id)> 1 ) bjoin restaurants ron r.r_id = b.r_id group by t.r_id,r.r_nameorder by repeateddesc;
+6)WITH num_of_repeated_customers(user_count,r_id) as (SELECT COUNT(user_id) as user_count, r_id FROM orders GROUP BY r_id ,user_id HAVING COUNT(user_id)> 1 ) SELECT r.r_name,user_count as repeated FROM num_of_repeated_customers n join restaurants r on r.r_id = n.r_id group by n.r_id,r.r_name order by repeated desc;
+
+7)SELECT totalsale,prev,((totalsale-prev)/prev)*100 as monthovermonth_growth FROM( WITH totalsales_per_month(totalsale) as (SELECT SUM(amount) as totalsale FROM orders GROUP BY month(date) ORDER BY month(date)) SELECT totalsale,LAG(totalsale,1) over(ORDER BY totalsale) as 'prev' FROM totalsales_per_month) t;
+
+8)WITH table_1(users,fid) as (SELECT o.user_id as users,od.f_id as fid FROM `orders` o JOIN orderdetails od ON o.order_id=od.order_id)
+,table_2(users,fid,count_fid) as (SELECT users,fid,COUNT(fid) as count_fid FROM table_1 t1 GROUP BY users,fid)
+,table_3(users,fid,count_fid,max_count) as (SELECT users,fid,count_fid,MAX(count_fid) over(PARTITION BY users ORDER BY users) as max_count FROM table_2 t2)
+,table_4(users,fid) as (SELECT users,fid FROM table_3 t3 WHERE count_fid = max_count)
+,table_5( users,user_name,fid) as (SELECT users,u.name as user_name,fid FROM table_4 t4 JOIN users_2 u ON t4.users = u.user_id)
+SELECT users,user_name,fid,f.f_name as fav_food FROM table_5 t5 JOIN food f ON t5.fid = f.f_id;
+
+9) WITH table_1(users,rid,user_count) as (SELECT user_id as users,r_id as rid,COUNT(user_id) as user_count FROM orders GROUP BY r_id,user_id ORDER BY r_id)
+,table_2(users,rid,user_count,max_count) as (SELECT users,rid,user_count,MAX(user_count) over(PARTITION BY rid ORDER BY rid) as max_count FROM table_1 t1)
+,table_3(users,rid) as (SELECT users,rid FROM table_2 WHERE user_count=max_count)
+SELECT users,u.name as user_name,r_id,r_name as restrnt FROM table_3 t3 JOIN users_2 u ON t3.users = u.user_id JOIN restaurants r ON t3.rid = r.r_id ORDER BY r_id;
+
+10)WITH table_1(rid,date_month,totalsale) as (SELECT r_id as rid,month(date) as date_month,SUM(amount) as totalsale FROM orders GROUP BY r_id,date_month ORDER BY r_id,month(date))
+,table_2(rid,date_month,totalsale,lag_totalsale) as (SELECT rid,date_month,totalsale,LAG(totalsale) over(PARTITION BY rid ORDER BY totalsale) as lag_totalsale FROM table_1 t1)
+SELECT rid,date_month,totalsale,lag_totalsale,((totalsale-lag_totalsale)/lag_totalsale)*100 as monthovermonth_growth_rest
+FROM table_2 t2;
